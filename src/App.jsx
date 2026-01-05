@@ -14,23 +14,58 @@ export default function App() {
 
   const login = async (e) => {
     e.preventDefault()
-    const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: user, password: pass }) })
-    if (r.ok) { setLoggedIn(true); load() } else setMsg('Invalid login')
+    setMsg('')
+    try {
+      const r = await fetch('/api/login', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ username: user, password: pass }) 
+      })
+      if (r.ok) { 
+        setLoggedIn(true)
+        load() 
+      } else {
+        setMsg('Invalid login')
+      }
+    } catch (err) {
+      setMsg('Connection error')
+    }
   }
 
   const load = async () => {
-    const [e, b] = await Promise.all([
-      fetch('/api/evaluations', { headers: auth() }).then(r => r.json()),
-      fetch('/api/evaluations/counts', { headers: auth() }).then(r => r.json())
-    ])
-    setEvals(e)
-    setBlocked(b.map(x => x.eval_date.split('T')[0]))
+    try {
+      const [e, b] = await Promise.all([
+        fetch('/api/evaluations', { headers: auth() }).then(r => r.json()),
+        fetch('/api/evaluations/counts', { headers: auth() }).then(r => r.json())
+      ])
+      setEvals(e)
+      setBlocked(b.map(x => x.eval_date.split('T')[0]))
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   const add = async (e) => {
     e.preventDefault()
-    const r = await fetch('/api/evaluations', { method: 'POST', headers: auth(), body: JSON.stringify({ dog_name: dogName, eval_date: date }) })
-    if (r.ok) { setDogName(''); setDate(''); setMsg('Added!'); load() } else setMsg((await r.json()).error)
+    setMsg('')
+    try {
+      const r = await fetch('/api/evaluations', { 
+        method: 'POST', 
+        headers: auth(), 
+        body: JSON.stringify({ dog_name: dogName, eval_date: date }) 
+      })
+      if (r.ok) { 
+        setDogName('')
+        setDate('')
+        setMsg('Added!')
+        load() 
+      } else {
+        const data = await r.json()
+        setMsg(data.error)
+      }
+    } catch (err) {
+      setMsg('Error adding')
+    }
   }
 
   const del = async (id) => {
@@ -47,7 +82,7 @@ export default function App() {
       <form onSubmit={login}>
         <input placeholder="Username" value={user} onChange={e => setUser(e.target.value)} />
         <input placeholder="Password" type="password" value={pass} onChange={e => setPass(e.target.value)} />
-        <button>Login</button>
+        <button type="submit">Login</button>
       </form>
       {msg && <p className="err">{msg}</p>}
     </div>
@@ -62,7 +97,7 @@ export default function App() {
           <input placeholder="Dog Name" value={dogName} onChange={e => setDogName(e.target.value)} required />
           <input type="date" value={date} onChange={e => setDate(e.target.value)} min={new Date().toISOString().split('T')[0]} required />
           {date && <small className={blocked.includes(date) ? 'red' : 'green'}>{blocked.includes(date) ? 'FULL' : `${spots(date)} spots left`}</small>}
-          <button disabled={blocked.includes(date)}>Add</button>
+          <button type="submit" disabled={blocked.includes(date)}>Add</button>
         </form>
         {msg && <p>{msg}</p>}
       </section>
