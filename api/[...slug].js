@@ -1,11 +1,10 @@
 import pg from 'pg';
 
 const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_PUBLIC_URL,
   ssl: { rejectUnauthorized: false }
 });
 
-// Create table on first run
 pool.query(`
   CREATE TABLE IF NOT EXISTS evaluations (
     id SERIAL PRIMARY KEY,
@@ -29,11 +28,13 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const path = [].concat(req.query.slug || []).join('/');
+  const body = req.body || {};
 
   try {
     if (req.method === 'POST' && path === 'login') {
-      const { username, password } = req.body;
-      if (username === 'admin' && password === 'Barking1') return res.json({ success: true });
+      if (body.username === 'admin' && body.password === 'Barking1') {
+        return res.status(200).json({ success: true });
+      }
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -50,7 +51,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST' && path === 'evaluations') {
-      const { dog_name, eval_date } = req.body;
+      const { dog_name, eval_date } = body;
       const count = await pool.query('SELECT COUNT(*) FROM evaluations WHERE eval_date = $1', [eval_date]);
       if (parseInt(count.rows[0].count) >= 3) return res.status(400).json({ error: 'Date fully booked' });
       const result = await pool.query('INSERT INTO evaluations (dog_name, eval_date) VALUES ($1, $2) RETURNING *', [dog_name, eval_date]);
