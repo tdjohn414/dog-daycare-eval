@@ -1,227 +1,80 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
-function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [loginError, setLoginError] = useState('')
-  
-  const [evaluations, setEvaluations] = useState([])
-  const [blockedDates, setBlockedDates] = useState([])
+export default function App() {
+  const [loggedIn, setLoggedIn] = useState(false)
+  const [user, setUser] = useState('')
+  const [pass, setPass] = useState('')
+  const [evals, setEvals] = useState([])
+  const [blocked, setBlocked] = useState([])
   const [dogName, setDogName] = useState('')
-  const [evalDate, setEvalDate] = useState('')
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [date, setDate] = useState('')
+  const [msg, setMsg] = useState('')
 
-  const getAuthHeader = () => {
-    const credentials = btoa(`${username}:${password}`)
-    return { 'Authorization': `Basic ${credentials}`, 'Content-Type': 'application/json' }
-  }
+  const auth = () => ({ Authorization: `Basic ${btoa(user + ':' + pass)}`, 'Content-Type': 'application/json' })
 
-  const handleLogin = async (e) => {
+  const login = async (e) => {
     e.preventDefault()
-    setLoginError('')
-    
-    try {
-      const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      })
-      
-      if (res.ok) {
-        setIsLoggedIn(true)
-        fetchEvaluations()
-        fetchBlockedDates()
-      } else {
-        setLoginError('Invalid username or password')
-      }
-    } catch (err) {
-      setLoginError('Connection error. Please try again.')
-    }
+    const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: user, password: pass }) })
+    if (r.ok) { setLoggedIn(true); load() } else setMsg('Invalid login')
   }
 
-  const fetchEvaluations = async () => {
-    try {
-      const res = await fetch('/api/evaluations', { headers: getAuthHeader() })
-      if (res.ok) {
-        const data = await res.json()
-        setEvaluations(data)
-      }
-    } catch (err) {
-      console.error('Error fetching evaluations:', err)
-    }
+  const load = async () => {
+    const [e, b] = await Promise.all([
+      fetch('/api/evaluations', { headers: auth() }).then(r => r.json()),
+      fetch('/api/evaluations/counts', { headers: auth() }).then(r => r.json())
+    ])
+    setEvals(e)
+    setBlocked(b.map(x => x.eval_date.split('T')[0]))
   }
 
-  const fetchBlockedDates = async () => {
-    try {
-      const res = await fetch('/api/evaluations/counts', { headers: getAuthHeader() })
-      if (res.ok) {
-        const data = await res.json()
-        setBlockedDates(data.map(d => d.eval_date.split('T')[0]))
-      }
-    } catch (err) {
-      console.error('Error fetching blocked dates:', err)
-    }
-  }
-
-  const handleSubmit = async (e) => {
+  const add = async (e) => {
     e.preventDefault()
-    setError('')
-    setSuccess('')
-    setLoading(true)
-
-    try {
-      const res = await fetch('/api/evaluations', {
-        method: 'POST',
-        headers: getAuthHeader(),
-        body: JSON.stringify({ dog_name: dogName, eval_date: evalDate })
-      })
-
-      const data = await res.json()
-
-      if (res.ok) {
-        setSuccess(`Evaluation scheduled for ${dogName} on ${evalDate}`)
-        setDogName('')
-        setEvalDate('')
-        fetchEvaluations()
-        fetchBlockedDates()
-      } else {
-        setError(data.error || 'Failed to create evaluation')
-      }
-    } catch (err) {
-      setError('Connection error. Please try again.')
-    } finally {
-      setLoading(false)
-    }
+    const r = await fetch('/api/evaluations', { method: 'POST', headers: auth(), body: JSON.stringify({ dog_name: dogName, eval_date: date }) })
+    if (r.ok) { setDogName(''); setDate(''); setMsg('Added!'); load() } else setMsg((await r.json()).error)
   }
 
-  const handleDelete = async (id) => {
-    if (!confirm('Delete this evaluation?')) return
-
-    try {
-      const res = await fetch(`/api/evaluations/${id}`, {
-        method: 'DELETE',
-        headers: getAuthHeader()
-      })
-
-      if (res.ok) {
-        fetchEvaluations()
-        fetchBlockedDates()
-        setSuccess('Evaluation deleted')
-      }
-    } catch (err) {
-      setError('Failed to delete evaluation')
-    }
+  const del = async (id) => {
+    await fetch(`/api/evaluations/${id}`, { method: 'DELETE', headers: auth() })
+    load()
   }
 
-  const handleLogout = () => {
-    setIsLoggedIn(false)
-    setUsername('')
-    setPassword('')
-    setEvaluations([])
-  }
+  const fmt = (d) => new Date(d).toLocaleDateString()
+  const spots = (d) => 3 - evals.filter(e => e.eval_date.split('T')[0] === d).length
 
-  const formatDate = (dateStr) => {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
-  }
-
-  const getDateCount = (date) => evaluations.filter(e => e.eval_date.split('T')[0] === date).length
-  const isDateBlocked = (date) => blockedDates.includes(date)
-
-  if (!isLoggedIn) {
-    return (
-      <div className="login-container">
-        <div className="login-box">
-          <h1>🐕 Dog Daycare</h1>
-          <h2>Evaluation Tracker</h2>
-          <form onSubmit={handleLogin}>
-            <div className="form-group">
-              <label>Username</label>
-              <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required />
-            </div>
-            <div className="form-group">
-              <label>Password</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-            </div>
-            {loginError && <div className="error">{loginError}</div>}
-            <button type="submit" className="btn-primary">Login</button>
-          </form>
-        </div>
-      </div>
-    )
-  }
+  if (!loggedIn) return (
+    <div className="login">
+      <h1>🐕 Dog Daycare Evaluations</h1>
+      <form onSubmit={login}>
+        <input placeholder="Username" value={user} onChange={e => setUser(e.target.value)} />
+        <input placeholder="Password" type="password" value={pass} onChange={e => setPass(e.target.value)} />
+        <button>Login</button>
+      </form>
+      {msg && <p className="err">{msg}</p>}
+    </div>
+  )
 
   return (
-    <div className="app-container">
-      <header>
-        <h1>🐕 Dog Daycare Evaluations</h1>
-        <button onClick={handleLogout} className="btn-logout">Logout</button>
-      </header>
-
-      <main>
-        <section className="form-section">
-          <h2>Schedule New Evaluation</h2>
-          <form onSubmit={handleSubmit}>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Dog Name</label>
-                <input type="text" value={dogName} onChange={(e) => setDogName(e.target.value)} placeholder="Enter dog's name" required />
-              </div>
-              <div className="form-group">
-                <label>Evaluation Date</label>
-                <input type="date" value={evalDate} onChange={(e) => setEvalDate(e.target.value)} min={new Date().toISOString().split('T')[0]} required />
-                {evalDate && (
-                  <small className={isDateBlocked(evalDate) ? 'blocked' : 'available'}>
-                    {isDateBlocked(evalDate) ? '❌ Fully booked (3/3)' : `✓ ${3 - getDateCount(evalDate)} spots available`}
-                  </small>
-                )}
-              </div>
-            </div>
-            {error && <div className="error">{error}</div>}
-            {success && <div className="success">{success}</div>}
-            <button type="submit" className="btn-primary" disabled={loading || isDateBlocked(evalDate)}>
-              {loading ? 'Scheduling...' : 'Schedule Evaluation'}
-            </button>
-          </form>
-        </section>
-
-        <section className="list-section">
-          <h2>Scheduled Evaluations</h2>
-          {evaluations.length === 0 ? (
-            <p className="empty">No evaluations scheduled yet.</p>
-          ) : (
-            <div className="eval-list">
-              {evaluations.map((e) => (
-                <div key={e.id} className="eval-card">
-                  <div className="eval-info">
-                    <span className="dog-name">🐕 {e.dog_name}</span>
-                    <span className="eval-date">{formatDate(e.eval_date)}</span>
-                  </div>
-                  <button onClick={() => handleDelete(e.id)} className="btn-delete">✕</button>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="blocked-section">
-          <h2>Fully Booked Dates</h2>
-          {blockedDates.length === 0 ? (
-            <p className="empty">No dates fully booked.</p>
-          ) : (
-            <div className="blocked-list">
-              {blockedDates.map((date) => (
-                <span key={date} className="blocked-date">{formatDate(date)}</span>
-              ))}
-            </div>
-          )}
-        </section>
-      </main>
+    <div className="app">
+      <header><h1>🐕 Dog Daycare Evaluations</h1><button onClick={() => setLoggedIn(false)}>Logout</button></header>
+      <section>
+        <h2>Schedule Evaluation</h2>
+        <form onSubmit={add}>
+          <input placeholder="Dog Name" value={dogName} onChange={e => setDogName(e.target.value)} required />
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} min={new Date().toISOString().split('T')[0]} required />
+          {date && <small className={blocked.includes(date) ? 'red' : 'green'}>{blocked.includes(date) ? 'FULL' : `${spots(date)} spots left`}</small>}
+          <button disabled={blocked.includes(date)}>Add</button>
+        </form>
+        {msg && <p>{msg}</p>}
+      </section>
+      <section>
+        <h2>Scheduled ({evals.length})</h2>
+        {evals.map(e => (
+          <div key={e.id} className="card">
+            <span>🐕 {e.dog_name} - {fmt(e.eval_date)}</span>
+            <button onClick={() => del(e.id)}>✕</button>
+          </div>
+        ))}
+      </section>
     </div>
   )
 }
-
-export default App
