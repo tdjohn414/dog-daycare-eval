@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
-
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [username, setUsername] = useState('')
@@ -26,7 +24,7 @@ function App() {
     setLoginError('')
     
     try {
-      const res = await fetch(`${API_URL}/api/login`, {
+      const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
@@ -46,9 +44,7 @@ function App() {
 
   const fetchEvaluations = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/evaluations`, {
-        headers: getAuthHeader()
-      })
+      const res = await fetch('/api/evaluations', { headers: getAuthHeader() })
       if (res.ok) {
         const data = await res.json()
         setEvaluations(data)
@@ -60,9 +56,7 @@ function App() {
 
   const fetchBlockedDates = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/evaluations/counts`, {
-        headers: getAuthHeader()
-      })
+      const res = await fetch('/api/evaluations/counts', { headers: getAuthHeader() })
       if (res.ok) {
         const data = await res.json()
         setBlockedDates(data.map(d => d.eval_date.split('T')[0]))
@@ -79,7 +73,7 @@ function App() {
     setLoading(true)
 
     try {
-      const res = await fetch(`${API_URL}/api/evaluations`, {
+      const res = await fetch('/api/evaluations', {
         method: 'POST',
         headers: getAuthHeader(),
         body: JSON.stringify({ dog_name: dogName, eval_date: evalDate })
@@ -104,10 +98,10 @@ function App() {
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this evaluation?')) return
+    if (!confirm('Delete this evaluation?')) return
 
     try {
-      const res = await fetch(`${API_URL}/api/evaluations/${id}`, {
+      const res = await fetch(`/api/evaluations/${id}`, {
         method: 'DELETE',
         headers: getAuthHeader()
       })
@@ -131,23 +125,12 @@ function App() {
 
   const formatDate = (dateStr) => {
     const date = new Date(dateStr)
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
-    })
+    return date.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
   }
 
-  const getDateCount = (date) => {
-    return evaluations.filter(e => e.eval_date.split('T')[0] === date).length
-  }
+  const getDateCount = (date) => evaluations.filter(e => e.eval_date.split('T')[0] === date).length
+  const isDateBlocked = (date) => blockedDates.includes(date)
 
-  const isDateBlocked = (date) => {
-    return blockedDates.includes(date)
-  }
-
-  // Login Screen
   if (!isLoggedIn) {
     return (
       <div className="login-container">
@@ -157,23 +140,11 @@ function App() {
           <form onSubmit={handleLogin}>
             <div className="form-group">
               <label>Username</label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter username"
-                required
-              />
+              <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required />
             </div>
             <div className="form-group">
               <label>Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password"
-                required
-              />
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
             {loginError && <div className="error">{loginError}</div>}
             <button type="submit" className="btn-primary">Login</button>
@@ -183,7 +154,6 @@ function App() {
     )
   }
 
-  // Main App
   return (
     <div className="app-container">
       <header>
@@ -198,42 +168,21 @@ function App() {
             <div className="form-row">
               <div className="form-group">
                 <label>Dog Name</label>
-                <input
-                  type="text"
-                  value={dogName}
-                  onChange={(e) => setDogName(e.target.value)}
-                  placeholder="Enter dog's name"
-                  required
-                />
+                <input type="text" value={dogName} onChange={(e) => setDogName(e.target.value)} placeholder="Enter dog's name" required />
               </div>
               <div className="form-group">
                 <label>Evaluation Date</label>
-                <input
-                  type="date"
-                  value={evalDate}
-                  onChange={(e) => setEvalDate(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]}
-                  required
-                />
+                <input type="date" value={evalDate} onChange={(e) => setEvalDate(e.target.value)} min={new Date().toISOString().split('T')[0]} required />
                 {evalDate && (
                   <small className={isDateBlocked(evalDate) ? 'blocked' : 'available'}>
-                    {isDateBlocked(evalDate) 
-                      ? '❌ This date is fully booked (3/3)'
-                      : `✓ ${3 - getDateCount(evalDate)} spots available`
-                    }
+                    {isDateBlocked(evalDate) ? '❌ Fully booked (3/3)' : `✓ ${3 - getDateCount(evalDate)} spots available`}
                   </small>
                 )}
               </div>
             </div>
-            
             {error && <div className="error">{error}</div>}
             {success && <div className="success">{success}</div>}
-            
-            <button 
-              type="submit" 
-              className="btn-primary"
-              disabled={loading || isDateBlocked(evalDate)}
-            >
+            <button type="submit" className="btn-primary" disabled={loading || isDateBlocked(evalDate)}>
               {loading ? 'Scheduling...' : 'Schedule Evaluation'}
             </button>
           </form>
@@ -245,19 +194,13 @@ function App() {
             <p className="empty">No evaluations scheduled yet.</p>
           ) : (
             <div className="eval-list">
-              {evaluations.map((eval_item) => (
-                <div key={eval_item.id} className="eval-card">
+              {evaluations.map((e) => (
+                <div key={e.id} className="eval-card">
                   <div className="eval-info">
-                    <span className="dog-name">🐕 {eval_item.dog_name}</span>
-                    <span className="eval-date">{formatDate(eval_item.eval_date)}</span>
+                    <span className="dog-name">🐕 {e.dog_name}</span>
+                    <span className="eval-date">{formatDate(e.eval_date)}</span>
                   </div>
-                  <button 
-                    onClick={() => handleDelete(eval_item.id)}
-                    className="btn-delete"
-                    title="Delete evaluation"
-                  >
-                    ✕
-                  </button>
+                  <button onClick={() => handleDelete(e.id)} className="btn-delete">✕</button>
                 </div>
               ))}
             </div>
@@ -267,13 +210,11 @@ function App() {
         <section className="blocked-section">
           <h2>Fully Booked Dates</h2>
           {blockedDates.length === 0 ? (
-            <p className="empty">No dates are fully booked.</p>
+            <p className="empty">No dates fully booked.</p>
           ) : (
             <div className="blocked-list">
               {blockedDates.map((date) => (
-                <span key={date} className="blocked-date">
-                  {formatDate(date)}
-                </span>
+                <span key={date} className="blocked-date">{formatDate(date)}</span>
               ))}
             </div>
           )}
